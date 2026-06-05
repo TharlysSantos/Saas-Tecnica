@@ -1,0 +1,48 @@
+{
+  "name": "StepConfig",
+  "type": "object",
+  "properties": {
+    "etapa": {
+      "type": "string",
+      "enum": [
+        "triagem",
+        "retencao",
+        "execucao",
+        "ex_assinante",
+        "oficializacao"
+      ],
+      "description": "Etapa do processo"
+    },
+    "grupos": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Grupos respons\u00e1veis pela etapa",
+      "default": []
+    },
+    "analistas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "nome": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Analistas respons\u00e1veis pela etapa (com nome reduzido e e-mail)",
+      "default": []
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "etapa"
+  ]
+}

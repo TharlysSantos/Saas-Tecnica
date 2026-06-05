@@ -1,0 +1,42 @@
+{
+  "name": "PlanConfig",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Nome do plano na Vindi"
+    },
+    "familia": {
+      "type": "string",
+      "description": "Fam\u00edlia do plano"
+    },
+    "marca": {
+      "type": "string",
+      "description": "Marca associada ao plano"
+    },
+    "multa": {
+      "type": "string",
+      "enum": [
+        "SIM",
+        "NAO"
+      ],
+      "description": "Se o plano possui multa"
+    },
+    "produto_multa_id": {
+      "type": "number",
+      "description": "ID do produto na Vindi usado para cobrar a multa contratual"
+    },
+    "produto_multa_nome": {
+      "type": "string",
+      "description": "Nome do produto de multa (apenas para refer\u00eancia)"
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o plano est\u00e1 ativo"
+    }
+  },
+  "required": [
+    "nome"
+  ]
+}

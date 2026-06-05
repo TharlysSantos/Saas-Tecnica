@@ -1,0 +1,329 @@
+{
+  "name": "RetentionRequest",
+  "type": "object",
+  "properties": {
+    "id_freshworks": {
+      "type": "string",
+      "description": "ID do Ticket no Freshworks"
+    },
+    "request_type": {
+      "type": "string",
+      "enum": [
+        "cancelamento",
+        "downgrade",
+        "duvidas"
+      ],
+      "description": "Tipo da solicita\u00e7\u00e3o"
+    },
+    "status_processo": {
+      "type": "string",
+      "enum": [
+        "triagem",
+        "em_tratativa",
+        "em_retencao_contato",
+        "aguardando_cliente",
+        "aguardando_prazo",
+        "aguardando_pagamento",
+        "em_execucao",
+        "processo_finalizado",
+        "retido",
+        "concluido"
+      ],
+      "default": "triagem",
+      "description": "Status detalhado do processo"
+    },
+    "responsavel": {
+      "type": "string",
+      "description": "Respons\u00e1vel pelo atendimento"
+    },
+    "cnpj": {
+      "type": "string"
+    },
+    "razao_social": {
+      "type": "string"
+    },
+    "solicitante": {
+      "type": "string"
+    },
+    "telefone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "endereco": {
+      "type": "string",
+      "description": "Logradouro / endere\u00e7o completo"
+    },
+    "bairro": {
+      "type": "string"
+    },
+    "cidade": {
+      "type": "string"
+    },
+    "estado": {
+      "type": "string"
+    },
+    "cep": {
+      "type": "string"
+    },
+    "motivo": {
+      "type": "string"
+    },
+    "solicitacao": {
+      "type": "string"
+    },
+    "duvida": {
+      "type": "string"
+    },
+    "id_assinatura": {
+      "type": "string",
+      "description": "ID da Assinatura Vindi"
+    },
+    "plano_contratado": {
+      "type": "string"
+    },
+    "plano_auxiliar": {
+      "type": "string",
+      "description": "Plano auxiliar (preenchido na triagem)"
+    },
+    "marca": {
+      "type": "string"
+    },
+    "familia": {
+      "type": "string"
+    },
+    "condicao_pagamento": {
+      "type": "string",
+      "description": "Mensal, Anual etc."
+    },
+    "valor_mensalidade": {
+      "type": "number"
+    },
+    "qtde_funcionarios": {
+      "type": "number"
+    },
+    "ciclos_faturados": {
+      "type": "number"
+    },
+    "tempo_contrato": {
+      "type": "number",
+      "description": "Tempo de contrato em meses (preenchido na triagem)"
+    },
+    "ciclos_faltantes": {
+      "type": "number"
+    },
+    "inadimplente": {
+      "type": "string",
+      "enum": [
+        "sim",
+        "nao"
+      ]
+    },
+    "passivel_multa": {
+      "type": "string",
+      "enum": [
+        "sim",
+        "nao",
+        "em_analise"
+      ]
+    },
+    "possui_multa": {
+      "type": "string",
+      "enum": [
+        "sim",
+        "nao"
+      ]
+    },
+    "cobra_multa": {
+      "type": "string",
+      "enum": [
+        "sim",
+        "nao"
+      ]
+    },
+    "motivo_nao_cobra_multa": {
+      "type": "string",
+      "enum": [
+        "tp_sem_termo",
+        "negociado_multa",
+        "erro_operacional"
+      ],
+      "description": "Justificativa para n\u00e3o cobrar multa"
+    },
+    "canal_contato": {
+      "type": "string",
+      "enum": [
+        "telefonico",
+        "email",
+        "whatsapp",
+        "sem_retorno"
+      ],
+      "description": "Canal de contato ou sem retorno"
+    },
+    "valor_multa": {
+      "type": "number"
+    },
+    "valor_multa_calculado": {
+      "type": "number"
+    },
+    "multa_bill_id": {
+      "type": "string",
+      "description": "ID da bill de multa gerada na Vindi"
+    },
+    "multa_bill_url": {
+      "type": "string",
+      "description": "URL do boleto da multa gerada na Vindi"
+    },
+    "multa_due_at": {
+      "type": "string",
+      "description": "Data de vencimento da multa agendada"
+    },
+    "possui_equipamento": {
+      "type": "boolean",
+      "default": false
+    },
+    "equipamento_devolvido": {
+      "type": "boolean",
+      "default": false
+    },
+    "status_store": {
+      "type": "string",
+      "enum": [
+        "ativo",
+        "ex_assinante",
+        "bloqueado",
+        "reprocessar"
+      ],
+      "default": "ativo",
+      "description": "Status do cliente na Store. 'reprocessar' = inadimplente que quitou pend\u00eancia e aguarda migra\u00e7\u00e3o normal"
+    },
+    "classificacao_motivacao": {
+      "type": "string",
+      "description": "Classifica\u00e7\u00e3o da motiva\u00e7\u00e3o de cancelamento"
+    },
+    "possui_termo": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se possui termo assinado"
+    },
+    "link_termo": {
+      "type": "string",
+      "description": "Link do termo no Drive"
+    },
+    "data_cancelamento_efetivo": {
+      "type": "string",
+      "format": "date",
+      "description": "Data opcional para cancelamento (entrada do usu\u00e1rio)"
+    },
+    "data_ex_assinante": {
+      "type": "string",
+      "format": "date",
+      "description": "Data agendada para cancelamento (calculada automaticamente)"
+    },
+    "data_reagendamento_suspensao": {
+      "type": "string",
+      "format": "date"
+    },
+    "suspensao_de": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de in\u00edcio da suspens\u00e3o"
+    },
+    "suspensao_ate": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de t\u00e9rmino da suspens\u00e3o (quando resultado_retencao = suspenso)"
+    },
+    "tipo_retencao": {
+      "type": "string",
+      "enum": [
+        "sem_alteracao",
+        "negociado"
+      ]
+    },
+    "texto_negociado": {
+      "type": "string"
+    },
+    "vindi_data": {
+      "type": "object"
+    },
+    "vindi_customer_id": {
+      "type": "string",
+      "description": "ID do cliente na Vindi para link direto"
+    },
+    "conclusao_resumo": {
+      "type": "string"
+    },
+    "conclusao_proximas_acoes": {
+      "type": "string"
+    },
+    "conclusao_motivo_id": {
+      "type": "string"
+    },
+    "contato_telefone": {
+      "type": "boolean",
+      "default": false,
+      "description": "Contato realizado por telefone"
+    },
+    "motivo_real": {
+      "type": "string",
+      "description": "Real motivo identificado pelo analista"
+    },
+    "negociacao_realizada": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da negocia\u00e7\u00e3o realizada"
+    },
+    "resultado_retencao": {
+      "type": "string",
+      "enum": [
+        "retido",
+        "suspenso",
+        "reativado",
+        "cancelado"
+      ],
+      "description": "Resultado da reten\u00e7\u00e3o"
+    },
+    "retorno_futuro": {
+      "type": "string",
+      "enum": [
+        "sim",
+        "nao"
+      ],
+      "description": "Possibilidade de retorno futuramente"
+    },
+    "proximo_contato_data": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data e hora do pr\u00f3ximo contato (fuso SP)"
+    },
+    "proximo_contato_tipo": {
+      "type": "string",
+      "enum": [
+        "ativo",
+        "receptivo"
+      ],
+      "description": "Tipo de contato (ativo = realizado pela empresa, receptivo = cliente entra em contato)"
+    },
+    "checklist_done": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs das etapas do checklist conclu\u00eddas",
+      "default": []
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es livres sobre o processo"
+    }
+  },
+  "required": [
+    "request_type",
+    "cnpj",
+    "razao_social",
+    "solicitante",
+    "telefone",
+    "email"
+  ]
+}

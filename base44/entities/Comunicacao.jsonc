@@ -1,0 +1,66 @@
+{
+  "name": "Comunicacao",
+  "type": "object",
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "description": "ID da RetentionRequest"
+    },
+    "tipo_template": {
+      "type": "string",
+      "enum": [
+        "triagem",
+        "cobranca",
+        "retencao",
+        "termo",
+        "cancelamento",
+        "suspensao"
+      ],
+      "description": "Tipo do comunicado enviado"
+    },
+    "canal": {
+      "type": "string",
+      "enum": [
+        "email",
+        "whatsapp",
+        "telefone",
+        "sistema"
+      ]
+    },
+    "destinatario": {
+      "type": "string"
+    },
+    "assunto": {
+      "type": "string"
+    },
+    "corpo": {
+      "type": "string"
+    },
+    "status_envio": {
+      "type": "string",
+      "enum": [
+        "enviado",
+        "erro",
+        "pendente"
+      ],
+      "default": "pendente"
+    },
+    "link_anexo": {
+      "type": "string"
+    },
+    "erro_detalhe": {
+      "type": "string"
+    },
+    "autor_nome": {
+      "type": "string"
+    },
+    "autor_email": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "tipo_template",
+    "canal"
+  ]
+}
