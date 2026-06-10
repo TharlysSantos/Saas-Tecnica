@@ -1,10 +1,12 @@
 # ─────────────────────────────────────────────────────────────────
 # CI/CD Pipeline — Portal CRM (Saas-Tecnica)
-# Documentação completa: CLAUDE.md → Seção 7
+# Documentação: CLAUDE.md → Seção 7
+#
+# Quando falha: cria uma Issue com label ci-error.
+# O agente Claude (Cowork) detecta a issue e traz o erro para análise.
 #
 # Secrets necessários (Settings → Secrets → Actions):
 #   PROD_PAT          → PAT com write em Saas-Tecnica_Prod
-#   ANTHROPIC_API_KEY → Claude API para análise de erros
 #   HOMOLOG_API_URL   → Endpoint de homologação (opcional por ora)
 #   HOMOLOG_API_TOKEN → Token para o endpoint acima (opcional)
 # ─────────────────────────────────────────────────────────────────
@@ -20,8 +22,8 @@ on:
 env:
   NODE_VERSION: '20'
 
-# ── JOB 1: Build & Lint ────────────────────────────────────────
 jobs:
+  # ── JOB 1: Build & Lint ────────────────────────────────────────
   build:
     name: 🔨 Build & Lint
     runs-on: ubuntu-latest
@@ -41,160 +43,101 @@ jobs:
 
       - name: Lint
         id: lint
-        run: |
-          npm run lint 2>&1 | tee /tmp/lint-output.txt
-          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        run: npm run lint 2>&1 | tee /tmp/lint-output.txt
         continue-on-error: true
 
       - name: Build
         id: build
-        if: steps.lint.outputs.exit_code == '0'
-        run: |
-          npm run build 2>&1 | tee /tmp/build-output.txt
-          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        run: npm run build 2>&1 | tee /tmp/build-output.txt
         continue-on-error: true
 
-      # Salva log de erro para o job de análise
-      - name: Salvar log de erro
-        if: steps.lint.outputs.exit_code != '0' || steps.build.outputs.exit_code != '0'
+      - name: Montar log de erro
+        id: error-log
+        if: steps.lint.outcome == 'failure' || steps.build.outcome == 'failure'
         run: |
-          echo "=== LINT OUTPUT ===" > error-log.txt
-          cat /tmp/lint-output.txt >> error-log.txt 2>/dev/null || echo "(sem output)" >> error-log.txt
-          echo "" >> error-log.txt
-          echo "=== BUILD OUTPUT ===" >> error-log.txt
-          cat /tmp/build-output.txt >> error-log.txt 2>/dev/null || echo "(sem output)" >> error-log.txt
-          echo "" >> error-log.txt
-          echo "=== CONTEXTO ===" >> error-log.txt
-          echo "Commit: ${{ github.sha }}" >> error-log.txt
-          echo "Autor: ${{ github.actor }}" >> error-log.txt
-          echo "Mensagem: $(git log -1 --pretty=%B)" >> error-log.txt
-          echo "Arquivos alterados:" >> error-log.txt
-          git diff --name-only HEAD~1 HEAD 2>/dev/null >> error-log.txt || echo "(não disponível)" >> error-log.txt
-          echo "STATUS_LINT=${{ steps.lint.outputs.exit_code }}" >> error-log.txt
-          echo "STATUS_BUILD=${{ steps.build.outputs.exit_code }}" >> error-log.txt
+          {
+            echo "## Lint"
+            cat /tmp/lint-output.txt 2>/dev/null || echo "(sem output)"
+            echo ""
+            echo "## Build"
+            cat /tmp/build-output.txt 2>/dev/null || echo "(sem output)"
+            echo ""
+            echo "## Contexto"
+            echo "Commit: ${{ github.sha }}"
+            echo "Autor:  ${{ github.actor }}"
+            echo "Msg:    $(git log -1 --pretty=%B)"
+            echo "Arquivos alterados:"
+            git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "(não disponível)"
+            echo "Lint:   ${{ steps.lint.outcome }}"
+            echo "Build:  ${{ steps.build.outcome }}"
+          } > /tmp/error-log.txt
+          echo "has_error=true" >> $GITHUB_OUTPUT
 
-      - name: Upload log de erro
-        if: steps.lint.outputs.exit_code != '0' || steps.build.outputs.exit_code != '0'
-        uses: actions/upload-artifact@v4
+      - name: Criar Issue de erro
+        if: steps.error-log.outputs.has_error == 'true'
+        uses: actions/github-script@v7
         with:
-          name: error-log
-          path: error-log.txt
-          retention-days: 7
+          script: |
+            const fs = require('fs');
+            const log = fs.readFileSync('/tmp/error-log.txt', 'utf8').slice(0, 6000);
+            const sha = context.sha.slice(0, 7);
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            // Fechar issues antigas de ci-error abertas para evitar acúmulo
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'ci-error',
+              state: 'open'
+            });
+            for (const issue of open) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+                body: issue.body + '\n\n> ⚠️ Fechada automaticamente — novo erro gerado.'
+              });
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `❌ Build falhou — ${sha}`,
+              body: [
+                `## Erro de CI/CD detectado`,
+                ``,
+                `| Campo | Valor |`,
+                `|---|---|`,
+                `| Commit | \`${context.sha}\` |`,
+                `| Autor | @${context.actor} |`,
+                `| Run | [Ver detalhes](${runUrl}) |`,
+                `| Lint | ${{ steps.lint.outcome }} |`,
+                `| Build | ${{ steps.build.outcome }} |`,
+                ``,
+                `### Log`,
+                `\`\`\``,
+                log,
+                `\`\`\``,
+              ].join('\n'),
+              labels: ['ci-error']
+            });
+
+            console.log(`✅ Issue criada para o commit ${sha}`);
+
+      - name: Falhar o job se houve erro
+        if: steps.error-log.outputs.has_error == 'true'
+        run: exit 1
 
       - name: Upload dist
-        if: steps.build.outputs.exit_code == '0'
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
           retention-days: 1
 
-      # Falhar o job se lint ou build falharam
-      - name: Verificar resultado
-        if: steps.lint.outputs.exit_code != '0' || steps.build.outputs.exit_code != '0'
-        run: |
-          echo "❌ Pipeline falhou — lint: ${{ steps.lint.outputs.exit_code }} | build: ${{ steps.build.outputs.exit_code }}"
-          exit 1
-
-# ── JOB 2: Análise de erro com Claude ─────────────────────────
-  analyze-error:
-    name: 🔍 Análise de Erro
-    runs-on: ubuntu-latest
-    needs: build
-    if: failure() && needs.build.result == 'failure'
-
-    steps:
-      - name: Download log de erro
-        uses: actions/download-artifact@v4
-        with:
-          name: error-log
-          path: .
-
-      - name: Analisar com Claude API
-        id: analysis
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "⚠️ ANTHROPIC_API_KEY não configurado — análise pulada"
-            echo "analysis=API key não configurada. Adicione o secret ANTHROPIC_API_KEY para análise automática de erros." >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          ERROR_LOG=$(cat error-log.txt | head -200)
-
-          PROMPT="Você é um assistente técnico analisando um erro de CI/CD de uma aplicação React + Vite chamada Portal CRM.
-
-          Analise o log de erro abaixo e responda em português de forma clara e objetiva. A pessoa que vai ler pode ser técnica ou não técnica — seja direto e explique bem.
-
-          Estruture a resposta exatamente assim:
-
-          **CATEGORIA**: [INTERNO | EXTERNO | CONFIGURAÇÃO]
-
-          **CAUSA**: Explique em 1-3 frases simples o que causou o erro. Mencione o arquivo e linha se estiver no log.
-
-          **O QUE SIGNIFICA**: Explique o que esse erro significa na prática, como se estivesse explicando para alguém que não é programador experiente.
-
-          **AÇÃO RECOMENDADA**: Liste os passos exatos para resolver. Seja específico — nada de 'verifique o código', diga exatamente o que verificar e onde.
-
-          **CONTEXTO**: Diga se é algo que bloqueia apenas o deploy (INTERNO) ou se pode estar afetando o sistema em produção agora (EXTERNO/CONFIGURAÇÃO).
-
-          Categorias:
-          - INTERNO = erro no código-fonte (lint, TypeScript, import errado, lógica)
-          - EXTERNO = serviço de terceiro com problema (API fora, CORS, timeout de rede)
-          - CONFIGURAÇÃO = secret faltando, variável de ambiente errada, configuração do projeto
-
-          LOG DE ERRO:
-          $ERROR_LOG"
-
-          RESPONSE=$(curl -s -X POST "https://api.anthropic.com/v1/messages" \
-            -H "x-api-key: $ANTHROPIC_API_KEY" \
-            -H "anthropic-version: 2023-06-01" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"model\": \"claude-haiku-4-5-20251001\",
-              \"max_tokens\": 1024,
-              \"messages\": [{\"role\": \"user\", \"content\": $(echo "$PROMPT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}]
-            }")
-
-          ANALYSIS=$(echo "$RESPONSE" | python3 -c "
-          import json, sys
-          try:
-              data = json.load(sys.stdin)
-              print(data['content'][0]['text'])
-          except Exception as e:
-              print(f'Erro ao parsear resposta da API: {e}')
-              print('Resposta bruta:', sys.stdin.read()[:500])
-          " 2>/dev/null || echo "Não foi possível obter análise da API.")
-
-          # Salva para o próximo step
-          echo "$ANALYSIS" > analysis.txt
-          echo "Análise concluída"
-
-      - name: Postar análise no Summary
-        if: always()
-        run: |
-          ANALYSIS=$(cat analysis.txt 2>/dev/null || echo "Análise não disponível.")
-
-          cat >> $GITHUB_STEP_SUMMARY << SUMMARY
-          ## ❌ Build Falhou — Análise Automática
-
-          **Commit:** \`${{ github.sha }}\`
-          **Autor:** ${{ github.actor }}
-          **Run:** [Ver detalhes completos](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
-          ---
-
-          $ANALYSIS
-
-          ---
-
-          > 📎 O log completo está disponível como artifact \`error-log\` neste run.
-          SUMMARY
-
-          echo "✅ Análise postada no Summary"
-
-# ── JOB 3: Homologação ─────────────────────────────────────────
+  # ── JOB 2: Homologação ─────────────────────────────────────────
   homologacao:
     name: 🧪 Homologação
     runs-on: ubuntu-latest
@@ -214,10 +157,7 @@ jobs:
             exit 0
           fi
 
-          echo "🔍 Chamando API de homologação..."
-
-          RESPONSE=$(curl -s -w "\n%{http_code}" \
-            --max-time 60 \
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 60 \
             -X POST "$HOMOLOG_API_URL" \
             -H "Authorization: Bearer $HOMOLOG_API_TOKEN" \
             -H "Content-Type: application/json" \
@@ -231,32 +171,11 @@ jobs:
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "HTTP: $HTTP_CODE | Body: $BODY"
 
-          echo "HTTP status : $HTTP_CODE"
-          echo "Response    : $BODY"
+          [ "$HTTP_CODE" = "200" ] && echo "result=passed" >> $GITHUB_OUTPUT || { echo "result=failed" >> $GITHUB_OUTPUT; exit 1; }
 
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "❌ Homologação reprovou (HTTP $HTTP_CODE)"
-            echo "result=failed" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-
-          echo "✅ Homologação aprovada"
-          echo "result=passed" >> $GITHUB_OUTPUT
-
-      - name: Resumo da homologação
-        if: always()
-        run: |
-          RESULT="${{ steps.api-check.outputs.result }}"
-          case $RESULT in
-            passed)  echo "### ✅ Homologação aprovada" >> $GITHUB_STEP_SUMMARY ;;
-            skipped) echo "### ⚠️ Homologação não configurada (pulada)" >> $GITHUB_STEP_SUMMARY ;;
-            *)       echo "### ❌ Homologação reprovada" >> $GITHUB_STEP_SUMMARY ;;
-          esac
-          echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Autor:  \`${{ github.actor }}\`" >> $GITHUB_STEP_SUMMARY
-
-# ── JOB 4: Deploy → Produção ───────────────────────────────────
+  # ── JOB 3: Deploy → Produção ───────────────────────────────────
   deploy:
     name: 🚀 Deploy → Produção
     runs-on: ubuntu-latest
@@ -274,45 +193,44 @@ jobs:
         env:
           PROD_PAT: ${{ secrets.PROD_PAT }}
         run: |
-          if [ -z "$PROD_PAT" ]; then
-            echo "❌ Secret PROD_PAT não configurado"
-            exit 1
-          fi
+          [ -z "$PROD_PAT" ] && echo "❌ PROD_PAT não configurado" && exit 1
 
           git config --global user.email "ci-bot@portalcrm"
           git config --global user.name  "CI/CD Bot"
-
           cd dist
-
           git init
-          git remote add origin \
-            "https://x-access-token:${PROD_PAT}@github.com/TharlysSantos/Saas-Tecnica_Prod.git"
-
+          git remote add origin "https://x-access-token:${PROD_PAT}@github.com/TharlysSantos/Saas-Tecnica_Prod.git"
           git checkout -b main
-
           cat > .deploy-info.json << DEPEOF
           {
-            "source_repo":   "${{ github.repository }}",
             "source_commit": "${{ github.sha }}",
             "deployed_by":   "${{ github.actor }}",
             "deployed_at":   "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
             "run_id":        "${{ github.run_id }}"
           }
           DEPEOF
-
           git add .
-          git commit -m "deploy: ${{ github.sha }}
-
-          Source:  ${{ github.repository }}@${{ github.ref_name }}
-          Commit:  ${{ github.sha }}
-          Author:  ${{ github.actor }}
-          Run:     https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
+          git commit -m "deploy: ${{ github.sha }} by ${{ github.actor }}"
           git push --force origin main
-
-      - name: Resumo do deploy
-        run: |
           echo "### 🚀 Deploy concluído" >> $GITHUB_STEP_SUMMARY
-          echo "- Produção: https://github.com/TharlysSantos/Saas-Tecnica_Prod" >> $GITHUB_STEP_SUMMARY
-          echo "- Commit fonte: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Autor: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fechar issue ci-error se existir
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'ci-error',
+              state: 'open'
+            });
+            for (const issue of issues) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+                body: issue.body + `\n\n> ✅ Resolvido no deploy \`${{ github.sha }}\``
+              });
+            }
