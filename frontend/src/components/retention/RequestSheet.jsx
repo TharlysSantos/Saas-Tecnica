@@ -5,8 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import VindiActionsPanel from "./VindiActionsPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { X, Loader2, Check, Phone, Mail, Send, CheckSquare, Trash2 } from "lucide-react";
+
+import { X, Loader2, Check, Phone, Mail, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const toUTCDate = (date) => {

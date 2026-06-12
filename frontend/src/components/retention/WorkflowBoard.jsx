@@ -1,16 +1,15 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { api } from "@/api/apiClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import ExecutionForm from "./ExecutionForm";
 import DuvidaResponseForm from "./DuvidaResponseForm";
 import ProximoContatoSelector from "./ProximoContatoSelector";
 import SemRetornoEmailForm from "./SemRetornoEmailForm";
 import EnvioDoTermo from "./EnvioDoTermo";
 import ExAssinantePanel from "./ExAssinantePanel";
-import { Loader2, Save, ChevronRight, ChevronDown, Upload, ExternalLink, ArrowRight, ArrowLeft, Search, UserCheck, Eye, EyeOff, RefreshCw, Database, Download, X, CheckCircle2 } from "lucide-react";
+import { Loader2, Save, ChevronRight, ChevronDown, Upload, ExternalLink, ArrowRight, ArrowLeft, Search, UserCheck, Eye, EyeOff, RefreshCw, Database, X } from "lucide-react";
 import { mesesParaTexto, gerarOpcoes } from "./TempoAssinatura";
 import TicketsDoCliente from "./TicketsDoCliente";
 import { toast } from "sonner";

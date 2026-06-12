@@ -3,7 +3,7 @@ import { api } from "@/api/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Pencil, Check, X, ChevronDown } from "lucide-react";
+import { Trash2, Plus, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ReasonCategories() {

@@ -1,5 +1,5 @@
 import React from "react";
-import { Ticket, ExternalLink, Clock, AlertCircle } from "lucide-react";
+import { Ticket, Clock, AlertCircle } from "lucide-react";
 
 const STATUS_LABELS = {
   triagem: "Triagem",

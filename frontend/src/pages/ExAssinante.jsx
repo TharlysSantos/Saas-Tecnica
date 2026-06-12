@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Download, CheckCircle2, CalendarDays, Users, AlertTriangle, Lock, Unlock, UserCheck, X } from "lucide-react";
+import { Download, CalendarDays, Users, AlertTriangle, Lock, UserCheck, X } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";

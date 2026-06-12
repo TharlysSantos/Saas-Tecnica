@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Save, Upload, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { mesesParaTexto, gerarOpcoes, textoParaMeses } from "./TempoAssinatura";
+import { mesesParaTexto, gerarOpcoes } from "./TempoAssinatura";
 
 function PlanoAuxiliarField({ label, value, onSave, planos }) {
   const [saving, setSaving] = useState(false);

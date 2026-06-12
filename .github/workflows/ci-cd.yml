@@ -2,14 +2,7 @@
 # CI/CD Pipeline — Portal CRM (Saas-Tecnica)
 # Documentação: CLAUDE.md → Seção 7
 #
-# Estrutura do repo:
-#   frontend/ → código React, Vite, package.json
-#   backend/  → Node.js Express (porta 3050)
-#
-# Quando falha:  cria Issue com label ci-error → agente Claude detecta
-# Quando passa:  aciona gateway de pentest/validação via HMAC-SHA256
-#
-# Secrets necessários (GitHub → Settings → Secrets and variables → Actions):
+# Secrets (GitHub → Settings → Secrets and variables → Actions):
 #   API_GATEWAY_URL          → URL base do gateway de validação
 #   API_GATEWAY_PENTEST_KEY  → chave HMAC para assinar o payload
 #   HOMOLOG_API_URL          → endpoint de homologação (opcional)
@@ -25,7 +18,8 @@ on:
     branches: [main]
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ── JOB 1: Build & Lint ────────────────────────────────────────
@@ -51,45 +45,23 @@ jobs:
         run: npm ci
 
       - name: Lint
-        id: lint
-        run: npm run lint 2>&1 | tee /tmp/lint-output.txt
-        continue-on-error: true
+        run: npm run lint
 
       - name: Build
-        id: build
-        run: npm run build 2>&1 | tee /tmp/build-output.txt
-        continue-on-error: true
+        run: npm run build
 
-      - name: Montar log de erro
-        id: error-log
-        if: steps.lint.outcome == 'failure' || steps.build.outcome == 'failure'
-        working-directory: ${{ github.workspace }}
-        run: |
-          {
-            echo "## Lint"
-            cat /tmp/lint-output.txt 2>/dev/null || echo "(sem output)"
-            echo ""
-            echo "## Build"
-            cat /tmp/build-output.txt 2>/dev/null || echo "(sem output)"
-            echo ""
-            echo "## Contexto"
-            echo "Commit: ${{ github.sha }}"
-            echo "Autor:  ${{ github.actor }}"
-            echo "Msg:    $(git log -1 --pretty=%B)"
-            echo "Arquivos alterados:"
-            git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "(não disponível)"
-            echo "Lint:  ${{ steps.lint.outcome }}"
-            echo "Build: ${{ steps.build.outcome }}"
-          } > /tmp/error-log.txt
-          echo "has_error=true" >> $GITHUB_OUTPUT
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: frontend/dist/
+          retention-days: 1
 
       - name: Criar Issue de erro
-        if: steps.error-log.outputs.has_error == 'true'
+        if: failure()
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const log = fs.readFileSync('/tmp/error-log.txt', 'utf8').slice(0, 6000);
             const sha = context.sha.slice(0, 7);
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
@@ -115,68 +87,37 @@ jobs:
                 `| Commit | \`${context.sha}\` |`,
                 `| Autor | @${context.actor} |`,
                 `| Run | [Ver detalhes](${runUrl}) |`,
-                `| Lint | ${{ steps.lint.outcome }} |`,
-                `| Build | ${{ steps.build.outcome }} |`,
-                ``,
-                `### Log`,
-                '```',
-                log,
-                '```',
               ].join('\n'),
               labels: ['ci-error']
             });
-
-      - name: Falhar o job se houve erro
-        if: steps.error-log.outputs.has_error == 'true'
-        working-directory: ${{ github.workspace }}
-        run: exit 1
-
-      - name: Upload dist
-        if: steps.build.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: frontend/dist/
-          retention-days: 1
 
   # ── JOB 2: Homologação ─────────────────────────────────────────
   homologacao:
     name: 🧪 Homologação
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.result == 'success'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: API Check de Homologação
-        id: api-check
         env:
           HOMOLOG_API_URL:   ${{ secrets.HOMOLOG_API_URL }}
           HOMOLOG_API_TOKEN: ${{ secrets.HOMOLOG_API_TOKEN }}
         run: |
           if [ -z "$HOMOLOG_API_URL" ]; then
             echo "⚠️  HOMOLOG_API_URL não configurado — etapa pulada"
-            echo "result=skipped" >> $GITHUB_OUTPUT
             exit 0
           fi
-          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 60 \
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 \
             -X POST "$HOMOLOG_API_URL" \
             -H "Authorization: Bearer $HOMOLOG_API_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{
-              \"repo\":   \"${{ github.repository }}\",
-              \"commit\": \"${{ github.sha }}\",
-              \"branch\": \"${{ github.ref_name }}\",
-              \"actor\":  \"${{ github.actor }}\",
-              \"run_id\": \"${{ github.run_id }}\"
-            }")
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            -d "{\"repo\":\"${{ github.repository }}\",\"commit\":\"${{ github.sha }}\",\"branch\":\"${{ github.ref_name }}\"}")
           echo "HTTP: $HTTP_CODE"
-          [ "$HTTP_CODE" = "200" ] \
-            && echo "result=passed" >> $GITHUB_OUTPUT \
-            || { echo "result=failed" >> $GITHUB_OUTPUT; exit 1; }
+          [ "$HTTP_CODE" = "200" ] || exit 1
 
   # ── JOB 3: Acionar Gateway de Validação ────────────────────────
   notify:
@@ -231,8 +172,8 @@ jobs:
             f"{GATEWAY_URL}/pentest/trigger",
             data=body,
             headers={
-              "Content-Type":       "application/json",
-              "X-API-Key":          GATEWAY_KEY,
+              "Content-Type":        "application/json",
+              "X-API-Key":           GATEWAY_KEY,
               "X-Hub-Signature-256": sig,
             }
           )

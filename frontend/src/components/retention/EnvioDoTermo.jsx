@@ -1,8 +1,8 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { api } from "@/api/apiClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, AlertTriangle, Stamp, Loader2, FileText, ArrowLeft, X, ShieldAlert, History, Eye, ExternalLink } from "lucide-react";
+import { CheckCircle2, XCircle, Stamp, Loader2, FileText, ArrowLeft, X, ShieldAlert, History, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 const formatDate = (d) => {

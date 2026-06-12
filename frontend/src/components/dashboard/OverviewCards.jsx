@@ -1,5 +1,5 @@
 import React from "react";
-import { FileText, XCircle, ShieldCheck, Clock, RefreshCw } from "lucide-react";
+import { XCircle, ShieldCheck, Clock, RefreshCw } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 
