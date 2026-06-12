@@ -4,16 +4,16 @@
 #
 # Estrutura do repo:
 #   frontend/ → código React, Vite, package.json
-#   backend/  → entidades e funções Base44
+#   backend/  → Node.js Express (porta 3050)
 #
 # Quando falha:  cria Issue com label ci-error → agente Claude detecta
-# Quando passa:  chama NOTIFY_API_URL informando aprovação
+# Quando passa:  aciona gateway de pentest/validação via HMAC-SHA256
 #
-# Secrets (Settings → Secrets → Actions):
-#   NOTIFY_API_URL    → endpoint de notificação de aprovação
-#   NOTIFY_API_TOKEN  → token Bearer para a API acima
-#   HOMOLOG_API_URL   → endpoint de homologação (opcional por ora)
-#   HOMOLOG_API_TOKEN → token para homologação
+# Secrets necessários (GitHub → Settings → Secrets and variables → Actions):
+#   API_GATEWAY_URL          → URL base do gateway de validação
+#   API_GATEWAY_PENTEST_KEY  → chave HMAC para assinar o payload
+#   HOMOLOG_API_URL          → endpoint de homologação (opcional)
+#   HOMOLOG_API_TOKEN        → token para homologação (opcional)
 # ─────────────────────────────────────────────────────────────────
 
 name: CI/CD Pipeline
@@ -26,7 +26,6 @@ on:
 
 env:
   NODE_VERSION: '20'
-  WORKING_DIR: ./frontend
 
 jobs:
   # ── JOB 1: Build & Lint ────────────────────────────────────────
@@ -179,9 +178,9 @@ jobs:
             && echo "result=passed" >> $GITHUB_OUTPUT \
             || { echo "result=failed" >> $GITHUB_OUTPUT; exit 1; }
 
-  # ── JOB 3: Notificar aprovação ─────────────────────────────────
+  # ── JOB 3: Acionar Gateway de Validação ────────────────────────
   notify:
-    name: ✅ Notificar Aprovação
+    name: ✅ Acionar Gateway
     runs-on: ubuntu-latest
     needs: [build, homologacao]
     if: >
@@ -194,30 +193,52 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Chamar API de notificação
+      - name: Disparar pentest/validação via gateway
         env:
-          NOTIFY_API_URL:   ${{ secrets.NOTIFY_API_URL }}
-          NOTIFY_API_TOKEN: ${{ secrets.NOTIFY_API_TOKEN }}
+          API_GATEWAY_URL:         ${{ secrets.API_GATEWAY_URL }}
+          API_GATEWAY_PENTEST_KEY: ${{ secrets.API_GATEWAY_PENTEST_KEY }}
+          GITHUB_SHA:              ${{ github.sha }}
+          GITHUB_REF_NAME:         ${{ github.ref_name }}
+          GITHUB_ACTOR:            ${{ github.actor }}
+          GITHUB_SERVER_URL:       ${{ github.server_url }}
+          GITHUB_REPOSITORY:       ${{ github.repository }}
+          GITHUB_RUN_ID:           ${{ github.run_id }}
+          GITHUB_EVENT_HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [ -z "$NOTIFY_API_URL" ]; then
-            echo "⚠️  NOTIFY_API_URL não configurado — pulado"
+          if [ -z "$API_GATEWAY_URL" ]; then
+            echo "⚠️  API_GATEWAY_URL não configurado — pulado"
             exit 0
           fi
-          COMMIT_MSG=$(git log -1 --pretty=%B | head -1)
-          curl -s --max-time 30 \
-            -X POST "$NOTIFY_API_URL" \
-            -H "Authorization: Bearer $NOTIFY_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"event\":   \"build_approved\",
-              \"repo\":    \"${{ github.repository }}\",
-              \"commit\":  \"${{ github.sha }}\",
-              \"branch\":  \"${{ github.ref_name }}\",
-              \"actor\":   \"${{ github.actor }}\",
-              \"message\": \"$COMMIT_MSG\",
-              \"run_id\":  \"${{ github.run_id }}\",
-              \"run_url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
-            }"
+          python3 << 'PYEOF'
+          import hashlib, hmac, json, os, requests
+
+          GATEWAY_URL = os.getenv("API_GATEWAY_URL")
+          GATEWAY_KEY = os.getenv("API_GATEWAY_PENTEST_KEY")
+
+          payload = {
+            "event":   "build_approved",
+            "commit":  os.getenv("GITHUB_SHA", ""),
+            "branch":  os.getenv("GITHUB_REF_NAME", ""),
+            "actor":   os.getenv("GITHUB_ACTOR", ""),
+            "message": os.getenv("GITHUB_EVENT_HEAD_COMMIT_MESSAGE", ""),
+            "run_url": f"{os.getenv('GITHUB_SERVER_URL')}/{os.getenv('GITHUB_REPOSITORY')}/actions/runs/{os.getenv('GITHUB_RUN_ID')}"
+          }
+
+          body = json.dumps(payload, separators=(",", ":")).encode()
+          sig  = "sha256=" + hmac.new(GATEWAY_KEY.encode(), body, hashlib.sha256).hexdigest()
+
+          resp = requests.post(
+            f"{GATEWAY_URL}/pentest/trigger",
+            data=body,
+            headers={
+              "Content-Type":       "application/json",
+              "X-API-Key":          GATEWAY_KEY,
+              "X-Hub-Signature-256": sig,
+            }
+          )
+          print(resp.status_code, resp.json())
+          resp.raise_for_status()
+          PYEOF
 
       - name: Fechar issue ci-error se existir
         uses: actions/github-script@v7
@@ -237,6 +258,6 @@ jobs:
 
       - name: Resumo
         run: |
-          echo "### ✅ Build aprovado" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Build aprovado e gateway acionado" >> $GITHUB_STEP_SUMMARY
           echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Autor: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY

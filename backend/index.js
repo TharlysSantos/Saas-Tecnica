@@ -1,60 +1,21 @@
 'use strict';
 
-require('express-async-errors');
+require('dotenv').config();
 const express = require('express');
-const helmet  = require('helmet');
-const morgan  = require('morgan');
+const cors    = require('cors');
 
-const corsMiddleware  = require('./middleware/cors');
-const errorHandler   = require('./middleware/errorHandler');
-const config         = require('./config');
+const app  = express();
+const PORT = process.env.PORT || 3050;
 
-// Rotas
-const healthRoutes   = require('./routes/health');
-const vindiRoutes    = require('./routes/vindi');
-const requestRoutes  = require('./routes/requests');
-const webhookRoutes  = require('./routes/webhook');
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3051', credentials: true }));
+app.use(express.json());
 
-const app = express();
-
-// ── Segurança ──────────────────────────────────────────────────────────────
-app.use(helmet());
-app.use(corsMiddleware);
-
-// ── Parsing ────────────────────────────────────────────────────────────────
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// ── Logging ────────────────────────────────────────────────────────────────
-if (config.nodeEnv !== 'test') {
-  app.use(morgan(config.nodeEnv === 'production' ? 'combined' : 'dev'));
-}
-
-// ── Rotas ──────────────────────────────────────────────────────────────────
-app.use('/health',        healthRoutes);
-app.use('/api/vindi',     vindiRoutes);
-app.use('/api/requests',  requestRoutes);
-app.use('/api/webhook',   webhookRoutes);
-
-// 404 para rotas não mapeadas
-app.use((req, res) => {
-  res.status(404).json({ error: `Rota não encontrada: ${req.method} ${req.path}` });
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// ── Tratamento de erros ────────────────────────────────────────────────────
-app.use(errorHandler);
+// Adicione suas rotas aqui
 
-// ── Inicialização ──────────────────────────────────────────────────────────
-const server = app.listen(config.port, () => {
-  console.log(`✓ Portal CRM Backend rodando na porta ${config.port} [${config.nodeEnv}]`);
-  console.log(`  → Health: http://localhost:${config.port}/health`);
-  console.log(`  → API:    http://localhost:${config.port}/api`);
+app.listen(PORT, () => {
+  console.log(`Backend rodando em http://localhost:${PORT}`);
 });
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM recebido — encerrando servidor...');
-  server.close(() => process.exit(0));
-});
-
-module.exports = app;
